@@ -4,7 +4,6 @@
 
 ## 🎮 Play the Game
 [Click here to play the game!](https://Aiswaryajosy.github.io/MazeMind-2D/)
-*(Note: Replace YOUR-USERNAME with your actual GitHub username)*
 
 ## 🧠 AI & Features
 
