@@ -6,10 +6,6 @@
 
 [Click here to play the game!](https://aiswaryajosy.github.io/MazeMind/)
 
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-
 
 ## 🎮 The Core Experience
 
@@ -81,6 +77,11 @@ When the environment is set to **Dynamic**, the maze shifts walls randomly. To p
 3.  If the path is broken, the **Bridge Builder** identifies candidate walls that separate the "Start Set" from the "End Set" and breaks one open to restore the path.
 
 ### Tech Stack
+
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+
 * **Rendering:** HTML5 Canvas API (Pixel-perfect rendering).
 * **Styling:** Tailwind CSS for the HUD and Glassmorphism effects.
 * **Animation:** GSAP (GreenSock) for smooth UI transitions and camera shakes.
