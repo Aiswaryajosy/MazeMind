@@ -6,10 +6,6 @@
 
 [Click here to play the game!](https://aiswaryajosy.github.io/MazeMind/)
 
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-
 ## 🎮 The Core Experience
 
 The goal is simple: Navigate the robot to the exit (blinking door). 
@@ -87,3 +83,7 @@ When the environment is set to **Dynamic**, the maze shifts walls randomly. To p
 
 ## 📄 License
 Distributed under the MIT License. See `LICENSE` for more information.
+
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
