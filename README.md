@@ -3,7 +3,7 @@
 **MazeMind 2D** is an advanced browser-based maze game featuring a "Dungeon Master" AI that adapts to your skill level in real-time.
 
 ## 🎮 Play the Game
-[Click here to play the game!](https://Aiswaryajosy.github.io/MazeMind-2D/)
+[Click here to play the game!](https://aiswaryajosy.github.io/MazeMind/)
 
 ## 🧠 AI & Features
 
