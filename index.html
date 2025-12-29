@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
         :root { --card-bg: rgba(17,24,39,0.86); --muted: #94a3b8; }
-        body { font-family: 'Inter', sans-serif; background:#0b1220; color:#e6ef8; margin:0; overflow:hidden; }
+        body { font-family: 'Inter', sans-serif; background:#0b1220; color:#e6eef8; margin:0; overflow:hidden; }
         .hidden { display: none !important; }
         #bg-canvas, #game-canvas, #sprite-canvas { image-rendering: pixelated; image-rendering: crisp-edges; display:block; }
         #bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; }
@@ -164,27 +164,27 @@
                         <h3 class="text-lg font-semibold text-white border-b border-slate-700 pb-3 mb-4">--- Maze Master AI ---</h3>
                         <div id="q-table-display" class="text-sm text--muted space-y-3">
                             <div>
-                                <p class="font-mono text-slate-300">State: <span class="font-bold">Fast</span></p>
+                                <p class="font-mono text-slate-300">State: <span class="font-bold">Fast</span> (Too Easy)</p>
                                 <div class="pl-4 text-xs space-y-1 mt-1">
-                                    <div class="flex justify-between"><span>Increase:</span><span id="q-fast-increase" class="font-mono text-emerald-400">0.00</span></div>
+                                    <div class="flex justify-between"><span>Inc Diff:</span><span id="q-fast-increase" class="font-mono text-emerald-400">0.00</span></div>
                                     <div class="flex justify-between"><span>Keep:</span><span id="q-fast-keep" class="font-mono text-slate-400">0.00</span></div>
-                                    <div class="flex justify-between"><span>Decrease:</span><span id="q-fast-decrease" class="font-mono text-red-400">0.00</span></div>
+                                    <div class="flex justify-between"><span>Dec Diff:</span><span id="q-fast-decrease" class="font-mono text-red-400">0.00</span></div>
                                 </div>
                             </div>
                             <div>
                                 <p class="font-mono text-slate-300">State: <span class="font-bold">Medium</span></p>
                                 <div class="pl-4 text-xs space-y-1 mt-1">
-                                    <div class="flex justify-between"><span>Increase:</span><span id="q-medium-increase" class="font-mono text-emerald-400">0.00</span></div>
+                                    <div class="flex justify-between"><span>Inc Diff:</span><span id="q-medium-increase" class="font-mono text-emerald-400">0.00</span></div>
                                     <div class="flex justify-between"><span>Keep:</span><span id="q-medium-keep" class="font-mono text-slate-400">0.00</span></div>
-                                    <div class="flex justify-between"><span>Decrease:</span><span id="q-medium-decrease" class="font-mono text-red-400">0.00</span></div>
+                                    <div class="flex justify-between"><span>Dec Diff:</span><span id="q-medium-decrease" class="font-mono text-red-400">0.00</span></div>
                                 </div>
                             </div>
                             <div>
-                                <p class="font-mono text-slate-300">State: <span class="font-bold">Slow</span></p>
+                                <p class="font-mono text-slate-300">State: <span class="font-bold">Slow</span> (Too Hard)</p>
                                 <div class="pl-4 text-xs space-y-1 mt-1">
-                                    <div class="flex justify-between"><span>Increase:</span><span id="q-slow-increase" class="font-mono text-emerald-400">0.00</span></div>
+                                    <div class="flex justify-between"><span>Inc Diff:</span><span id="q-slow-increase" class="font-mono text-emerald-400">0.00</span></div>
                                     <div class="flex justify-between"><span>Keep:</span><span id="q-slow-keep" class="font-mono text-slate-400">0.00</span></div>
-                                    <div class="flex justify-between"><span>Decrease:</span><span id="q-slow-decrease" class="font-mono text-red-400">0.00</span></div>
+                                    <div class="flex justify-between"><span>Dec Diff:</span><span id="q-slow-decrease" class="font-mono text-red-400">0.00</span></div>
                                 </div>
                             </div>
                         </div>
@@ -207,11 +207,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let startTime = 0, timePaused = 0, movesUntilShift = DEFAULT_SHIFT_INTERVAL, currentShiftInterval = DEFAULT_SHIFT_INTERVAL;
     let gameState = 'stopped', animationFrameId, gameMode = 'human', isFog = false;
     let mazeType = 'scattered', envMode = 'dynamic';
-    let difficultyLevel = 0; // START ON EASY -> 0: Easy, 1: Medium, 2: Hard
+    let difficultyLevel = 1; // 0: Easy, 1: Medium, 2: Hard
     let visibilityGrid = [], traps = [], solvedPath = [], pathIndex = 0;
     const keysPressed = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     let playerImage = null;
-    let lastAiMoveTimestamp = 0; // For AI Explorer stuck detection
 
     // --- DOM ELEMENTS ---
     const [bgCanvas, gameCanvas] = [document.getElementById('bg-canvas'), document.getElementById('game-canvas')];
@@ -222,162 +221,520 @@ document.addEventListener('DOMContentLoaded', () => {
     const [mazeTypeSelect, envModeSelect] = [document.getElementById('maze-type-select'), document.getElementById('env-mode-select')];
     const [levelStat, timeStat, movesStat, coinsStat, shiftsStat, trapsStat, actionStat, difficultyStat] = [document.getElementById('level-stat'), document.getElementById('time-stat'), document.getElementById('moves-stat'), document.getElementById('coins-stat'), document.getElementById('shifts-stat'), document.getElementById('traps-stat'), document.getElementById('action-stat'), document.getElementById('difficulty-stat')];
     const shiftsStatWrapper = document.getElementById('shifts-stat-wrapper');
-    const qFastIncrease = document.getElementById('q-fast-increase');
-    const qFastKeep = document.getElementById('q-fast-keep');
-    const qFastDecrease = document.getElementById('q-fast-decrease');
-    const qMediumIncrease = document.getElementById('q-medium-increase');
-    const qMediumKeep = document.getElementById('q-medium-keep');
-    const qMediumDecrease = document.getElementById('q-medium-decrease');
-    const qSlowIncrease = document.getElementById('q-slow-increase');
-    const qSlowKeep = document.getElementById('q-slow-keep');
-    const qSlowDecrease = document.getElementById('q-slow-decrease');
+    const qTableDisplay = {
+        0: {0: document.getElementById('q-fast-increase'), 1: document.getElementById('q-fast-keep'), 2: document.getElementById('q-fast-decrease')},
+        1: {0: document.getElementById('q-medium-increase'), 1: document.getElementById('q-medium-keep'), 2: document.getElementById('q-medium-decrease')},
+        2: {0: document.getElementById('q-slow-increase'), 1: document.getElementById('q-slow-keep'), 2: document.getElementById('q-slow-decrease')}
+    };
 
-    // --- Control Enabling Helper ---
     function setControlsEnabled(enabled) {
-        fogToggle.disabled = !enabled; pixelScale.disabled = !enabled; resetAiBtn.disabled = !enabled; gameModeSelect.disabled = false;
-        mazeTypeSelect.disabled = false; envModeSelect.disabled = false; menuBtn.disabled = false; pauseBtn.disabled = !enabled;
+        fogToggle.disabled = !enabled;
+        pixelScale.disabled = !enabled;
+        resetAiBtn.disabled = !enabled;
+        gameModeSelect.disabled = false;
+        mazeTypeSelect.disabled = false;
+        envModeSelect.disabled = false;
+        menuBtn.disabled = false;
+        pauseBtn.disabled = !enabled;
     }
 
     // --- AI EXPLORER AGENT STATE ---
-    let aiMemoryGrid = [], aiTarget = null;
+    let aiMemoryGrid = [], aiTarget = null, aiBacktrackStack = [];
 
     // --- DUNGEON MASTER AI (Q-Learning) ---
+    // States: 0=Fast(Easy), 1=Medium, 2=Slow(Hard) | Actions: 0=Increase Diff, 1=Keep, 2=Decrease Diff
     const AI_STATES = ["Fast", "Medium", "Slow"], AI_ACTIONS = ["Increase", "Keep", "Decrease"];
     let Q_TABLE, prev_state = null, prev_action = null;
-    function loadQTable() { try { const savedQ = localStorage.getItem('mazeMindQTable'); Q_TABLE = savedQ ? JSON.parse(savedQ) : Array(AI_STATES.length).fill(0).map(() => Array(AI_ACTIONS.length).fill(0)); } catch (e) { Q_TABLE = Array(AI_STATES.length).fill(0).map(() => Array(AI_ACTIONS.length).fill(0)); } }
-    function saveQTable() { localStorage.setItem('mazeMindQTable', JSON.stringify(Q_TABLE)); }
-    function resetQTable() { if(confirm("Are you sure? This will reset the difficulty-adjusting AI's memory.")){ Q_TABLE = Array(AI_STATES.length).fill(0).map(() => Array(AI_ACTIONS.length).fill(0)); difficultyLevel = 0; saveQTable(); updateQTableDisplay(); alert("AI Memory Reset!"); } }
-    function updateQTableDisplay() { if(!Q_TABLE)return; const f=(v)=>v.toFixed(2); qFastIncrease.textContent=f(Q_TABLE[0][0]); qFastKeep.textContent=f(Q_TABLE[0][1]); qFastDecrease.textContent=f(Q_TABLE[0][2]); qMediumIncrease.textContent=f(Q_TABLE[1][0]); qMediumKeep.textContent=f(Q_TABLE[1][1]); qMediumDecrease.textContent=f(Q_TABLE[1][2]); qSlowIncrease.textContent=f(Q_TABLE[2][0]); qSlowKeep.textContent=f(Q_TABLE[2][1]); qSlowDecrease.textContent=f(Q_TABLE[2][2]); }
-    function evaluatePerformance(time, moves, coins, collisions, trapFalls) { let score = time + (moves*0.5) + (collisions*2) + (trapFalls*10) - (coins*5); const fastThresh=20+(difficultyLevel*5); const medThresh=45+(difficultyLevel*10); if(score<fastThresh)return 0; if(score<medThresh)return 1; return 2; }
-    function chooseAction(state) { if(Math.random()<0.2)return Math.floor(Math.random()*AI_ACTIONS.length); return Q_TABLE[state].indexOf(Math.max(...Q_TABLE[state])); }
-    function updateQ(pState,pAction,state,reward) { if(pState===null)return; const oldVal=Q_TABLE[pState][pAction]; const nextMax=Math.max(...Q_TABLE[state]); Q_TABLE[pState][pAction]=oldVal+0.6*(reward+0.9*nextMax-oldVal); }
-
-    // --- PATHFINDING ---
-    async function findPathAStar(grid, start, end) { class Node { constructor(p, pos) { this.parent=p; this.pos=pos; this.g=0; this.h=0; this.f=0; } equals(o) { return this.pos[0]===o.pos[0]&&this.pos[1]===o.pos[1]; } } const startNode=new Node(null, start), endNode=new Node(null, end); let openList=[startNode], closedSet=new Set(), iters=0; while(openList.length>0){ if(++iters%100===0)await new Promise(r=>setTimeout(r,0)); let lowest=0; for(let i=1;i<openList.length;i++)if(openList[i].f<openList[lowest].f)lowest=i; let current=openList.splice(lowest,1)[0]; closedSet.add(`${current.pos[0]},${current.pos[1]}`); if(current.equals(endNode)){ let p=[];let c=current; while(c){p.push(c.pos);c=c.parent;} return p.reverse(); } for(const d of[[0,-1],[0,1],[-1,0],[1,0]]){ const nPos=[current.pos[0]+d[0],current.pos[1]+d[1]], nKey=`${nPos[0]},${nPos[1]}`; if(nPos[0]<0||nPos[0]>=grid.length||nPos[1]<0||nPos[1]>=grid[0].length || closedSet.has(nKey)) continue; const nextTile = grid[nPos[0]] && grid[nPos[0]][nPos[1]]; if(nextTile !== null && (nextTile === TILES.WALL || nextTile === TILES.TRAP)) continue; let child=new Node(current,nPos); child.g=current.g+1; child.h=Math.abs(child.pos[0]-endNode.pos[0])+Math.abs(child.pos[1]-endNode.pos[1]); child.f=child.g+child.h; if(!openList.some(o=>child.equals(o)&&child.g>=o.g))openList.push(child); } } return null; }
-    function isSolvable(grid, start, end) { const q=[start], v=new Set([`${start[0]},${start[1]}`]); while(q.length>0){ const[r,c]=q.shift(); if(r===end[0]&&c===end[1])return true; for(const[dr,dc]of[[0,1],[0,-1],[1,0],[-1,0]]){ const nr=r+dr, nc=c+dc, key=`${nr},${nc}`; if(nr>=0&&nr<MAZE_SIZE&&nc>=0&&nc<MAZE_SIZE&&grid[nr][nc]!==TILES.WALL&&!v.has(key)){v.add(key);q.push([nr,nc]);} } } return false; }
-    function isSolvableAvoidingTraps(grid, start, end) { const q=[start], v=new Set([`${start[0]},${start[1]}`]); while(q.length>0){ const[r,c]=q.shift(); if(r===end[0]&&c===end[1])return true; for(const[dr,dc]of[[0,1],[0,-1],[1,0],[-1,0]]){ const nr=r+dr, nc=c+dc, key=`${nr},${nc}`; if(nr>=0&&nr<MAZE_SIZE&&nc>=0&&nc<MAZE_SIZE && grid[nr][nc]!==TILES.WALL && grid[nr][nc]!==TILES.TRAP && !v.has(key)){ v.add(key); q.push([nr,nc]); } } } return false; }
     
-    // --- MAZE GENERATION ---
+    function loadQTable() { try { const savedQ = localStorage.getItem('mazeMindQTable'); Q_TABLE = savedQ ? JSON.parse(savedQ) : getDefaultQTable(); } catch (e) { Q_TABLE = getDefaultQTable(); } }
+    function getDefaultQTable() { 
+        return [
+            [2.0, 0.5, -1.0], // Fast
+            [0.5, 2.0, 0.5],  // Medium
+            [-1.0, 0.5, 2.0]  // Slow
+        ];
+    }
+    function saveQTable() { localStorage.setItem('mazeMindQTable', JSON.stringify(Q_TABLE)); }
+    function resetQTable() { if(confirm("Reset AI memory? This will return the Dungeon Master to factory settings.")){ Q_TABLE = getDefaultQTable(); difficultyLevel = 1; saveQTable(); updateQTableDisplay(); alert("AI Memory Reset!"); } }
+    
+    function updateQTableDisplay() {
+        if (!Q_TABLE) return;
+        const format = (val) => val.toFixed(2);
+        for(let s=0; s<3; s++) for(let a=0; a<3; a++) qTableDisplay[s][a].textContent = format(Q_TABLE[s][a]);
+    }
+
+    function evaluatePerformance(time, moves, coins, collisions, trapFalls) {
+        let score = time + (moves * 0.5) + (collisions * 2) + (trapFalls * 10) - (coins * 5);
+        const fastThreshold = 25 + (difficultyLevel * 10);
+        const mediumThreshold = 55 + (difficultyLevel * 15);
+        if (score < fastThreshold) return 0; // Fast/Easy
+        if (score < mediumThreshold) return 1; // Medium
+        return 2; // Slow/Hard
+    }
+    
+    function chooseAction(state) {
+        if (Math.random() < 0.1) return Math.floor(Math.random() * AI_ACTIONS.length);
+        const maxVal = Math.max(...Q_TABLE[state]);
+        const indices = Q_TABLE[state].map((val, idx) => val === maxVal ? idx : -1).filter(idx => idx !== -1);
+        return indices[Math.floor(Math.random() * indices.length)];
+    }
+
+    function updateQ(pState, pAction, state, reward) {
+        if(pState === null) return;
+        const alpha = 0.5; const gamma = 0.8;
+        const oldVal = Q_TABLE[pState][pAction];
+        const nextMax = Math.max(...Q_TABLE[state]);
+        Q_TABLE[pState][pAction] = oldVal + alpha * (reward + gamma * nextMax - oldVal);
+    }
+
+    // --- PATHFINDING & SOLVABILITY CHECKS ---
+    async function findPathAStar(grid, start, end, treatNullAsEmpty = false) {
+        class Node { constructor(p, pos) { this.parent=p; this.pos=pos; this.g=0; this.h=0; this.f=0; } }
+        const startNode = new Node(null, start);
+        const endNode = new Node(null, end);
+        let openList = [startNode], closedSet = new Set();
+        let iters = 0;
+
+        while (openList.length > 0) {
+            if (++iters % 200 === 0) await new Promise(r => setTimeout(r, 0));
+            let lowest = 0;
+            for (let i = 1; i < openList.length; i++) if (openList[i].f < openList[lowest].f) lowest = i;
+            let current = openList.splice(lowest, 1)[0];
+            
+            if (current.pos[0] === endNode.pos[0] && current.pos[1] === endNode.pos[1]) {
+                let path = []; let curr = current;
+                while (curr) { path.push(curr.pos); curr = curr.parent; }
+                return path.reverse();
+            }
+
+            closedSet.add(`${current.pos[0]},${current.pos[1]}`);
+            const neighbors = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+            for (const d of neighbors) {
+                const nr = current.pos[0] + d[0], nc = current.pos[1] + d[1];
+                if (nr < 0 || nr >= grid.length || nc < 0 || nc >= grid[0].length) continue;
+                if (closedSet.has(`${nr},${nc}`)) continue;
+                const tile = grid[nr][nc];
+                let isWalkable = false;
+                if (treatNullAsEmpty && tile === null) isWalkable = true;
+                else if (tile !== TILES.WALL && tile !== TILES.TRAP && tile !== null) isWalkable = true;
+                if (tile === TILES.TRAP) isWalkable = false; 
+                if (!isWalkable) continue;
+                
+                let neighbor = new Node(current, [nr, nc]);
+                neighbor.g = current.g + 1;
+                neighbor.h = Math.abs(neighbor.pos[0] - endNode.pos[0]) + Math.abs(neighbor.pos[1] - endNode.pos[1]);
+                neighbor.f = neighbor.g + neighbor.h;
+                const existingNode = openList.find(n => n.pos[0] === nr && n.pos[1] === nc);
+                if (existingNode && neighbor.g >= existingNode.g) continue;
+                openList.push(neighbor);
+            }
+        }
+        return null;
+    }
+
+    function getReachableSet(grid, start) {
+        const visited = new Set();
+        const queue = [start];
+        visited.add(`${start[0]},${start[1]}`);
+        while (queue.length > 0) {
+            const [r, c] = queue.shift();
+            [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr, dc]) => {
+                const nr=r+dr, nc=c+dc;
+                if(nr>=0 && nr<MAZE_SIZE && nc>=0 && nc<MAZE_SIZE && grid[nr][nc]!==TILES.WALL && grid[nr][nc]!==TILES.TRAP && !visited.has(`${nr},${nc}`)) {
+                    visited.add(`${nr},${nc}`);
+                    queue.push([nr,nc]);
+                }
+            });
+        }
+        return visited;
+    }
+
+    // STRICT: Only checks if destination is reachable via safe tiles (No Walls, No Traps)
+    function isSafePathPossible(grid, start, end) {
+        const reachable = getReachableSet(grid, start);
+        return reachable.has(`${end[0]},${end[1]}`);
+    }
+
+    // --- ROBUST MAZE GENERATION ---
     function generateMaze(rows, cols) {
         let wallDensity, loopChance, baseTrapCount, baseCoinCount;
         switch (difficultyLevel) {
-            case 0: wallDensity = 0.21; loopChance = 0.13; baseTrapCount = 1; baseCoinCount = 8; break; // Easy
-            case 2: wallDensity = 0.29; loopChance = 0.06; baseTrapCount = 5; baseCoinCount = 4; break; // Hard
-            case 1: default: wallDensity = 0.25; loopChance = 0.10; baseTrapCount = 3; baseCoinCount = 6; break; // Medium
+            case 0: wallDensity = 0.20; loopChance = 0.20; baseTrapCount = 0; baseCoinCount = 10; break;
+            case 2: wallDensity = 0.32; loopChance = 0.05; baseTrapCount = 5; baseCoinCount = 4; break;
+            case 1: default: wallDensity = 0.25; loopChance = 0.10; baseTrapCount = 3; baseCoinCount = 6; break;
         }
+
         while (true) {
             let grid;
-            if (mazeType === 'scattered') { grid = Array(rows).fill(0).map(() => Array(cols).fill(TILES.EMPTY)); for (let r=0; r<rows; r++) for (let c=0; c<cols; c++) if (r===0||c===0||r===rows-1||c===cols-1) grid[r][c] = TILES.WALL; const innerCells = (rows - 2) * (cols - 2); for (let i=0; i<Math.floor(innerCells*wallDensity); i++) { const r=Math.floor(Math.random()*(rows-2))+1, c=Math.floor(Math.random()*(cols-2))+1; if ((r>1||c>1)&&(r<rows-2||c<cols-2)) grid[r][c] = TILES.WALL; }
-            } else { grid = Array(rows).fill(0).map(()=>Array(cols).fill(TILES.WALL)); const stack=[[1,1]]; grid[1][1]=TILES.EMPTY; while(stack.length>0){ const [r,c]=stack[stack.length-1]; const neighbors=[]; for(const [dr,dc] of [[0,2],[0,-2],[2,0],[-2,0]]){ const nr=r+dr,nc=c+dc; if(nr>0&&nr<rows-1&&nc>0&&nc<cols-1&&grid[nr][nc]===TILES.WALL) neighbors.push([nr,nc]); } if(neighbors.length>0){ const [nr,nc]=neighbors[Math.floor(Math.random()*neighbors.length)]; grid[r+(nr-r)/2][c+(nc-c)/2]=TILES.EMPTY; grid[nr][nc]=TILES.EMPTY; stack.push([nr,nc]); } else stack.pop(); } const wallsToRemove=Math.floor((rows*cols)*loopChance); for(let i=0;i<wallsToRemove;i++){const r=Math.floor(Math.random()*(rows-2))+1,c=Math.floor(Math.random()*(cols-2))+1; if(grid[r][c]===TILES.WALL)grid[r][c]=TILES.EMPTY;} }
-            grid[1][1]=TILES.START; grid[rows-2][cols-2]=TILES.EXIT; if(!isSolvable(grid,[1,1],[rows-2,cols-2])) continue;
-            let emptyCells=[]; for(let r=1;r<rows-1;r++)for(let c=1;c<cols-1;c++)if(grid[r][c]===TILES.EMPTY)emptyCells.push([r,c]);
-            const finalCoinCount=Math.min(baseCoinCount,Math.floor(emptyCells.length*0.1)); for(let i=0;i<finalCoinCount;i++){if(emptyCells.length===0)break; const [r,c]=emptyCells.splice(Math.floor(Math.random()*emptyCells.length),1)[0]; grid[r][c]=TILES.COIN;}
-            const finalTrapCount=Math.min(baseTrapCount,Math.floor(emptyCells.length*0.08)); let placedTraps=0,attempts=0;
-            while(placedTraps<finalTrapCount&&emptyCells.length>0&&attempts<50){attempts++; const idx=Math.floor(Math.random()*emptyCells.length),[r,c]=emptyCells[idx]; grid[r][c]=TILES.TRAP; if(isSolvableAvoidingTraps(grid,[1,1],[rows-2,cols-2])){placedTraps++; emptyCells.splice(idx,1);}else grid[r][c]=TILES.EMPTY;}
-            traps.length=0; for(let r=0;r<rows;r++)for(let c=0;c<cols;c++)if(grid[r][c]===TILES.TRAP)traps.push({r,c});
+            if (mazeType === 'scattered') {
+                grid = Array(rows).fill(0).map(() => Array(cols).fill(TILES.EMPTY));
+                for (let r=0; r<rows; r++) for (let c=0; c<cols; c++) 
+                    if (r===0||c===0||r===rows-1||c===cols-1) grid[r][c] = TILES.WALL;
+                const innerCells = (rows - 2) * (cols - 2);
+                for (let i = 0; i < Math.floor(innerCells * wallDensity); i++) {
+                    const r = Math.floor(Math.random()*(rows-2))+1, c = Math.floor(Math.random()*(cols-2))+1;
+                    if ((r > 1 || c > 1) && (r < rows - 2 || c < cols - 2)) grid[r][c] = TILES.WALL;
+                }
+            } else { 
+                grid = Array(rows).fill(0).map(() => Array(cols).fill(TILES.WALL));
+                const stack = [[1, 1]]; grid[1][1] = TILES.EMPTY;
+                while (stack.length > 0) {
+                    const [r, c] = stack[stack.length - 1];
+                    const neighbors = [[0,2],[0,-2],[2,0],[-2,0]].map(([dr,dc])=>[r+dr,c+dc])
+                        .filter(([nr,nc])=>nr>0&&nr<rows-1&&nc>0&&nc<cols-1&&grid[nr][nc]===TILES.WALL);
+                    if (neighbors.length>0) {
+                        const [nr,nc]=neighbors[Math.floor(Math.random()*neighbors.length)];
+                        grid[r+(nr-r)/2][c+(nc-c)/2]=TILES.EMPTY; grid[nr][nc]=TILES.EMPTY;
+                        stack.push([nr, nc]);
+                    } else stack.pop();
+                }
+                const wallsToRemove = Math.floor((rows * cols) * loopChance);
+                for(let i=0; i < wallsToRemove; i++) {
+                    const r=Math.floor(Math.random()*(rows-2))+1, c=Math.floor(Math.random()*(cols-2))+1;
+                    if(grid[r][c]===TILES.WALL) grid[r][c]=TILES.EMPTY;
+                }
+            }
+
+            grid[1][1] = TILES.START; grid[rows-2][cols-2] = TILES.EXIT;
+            if (!isSafePathPossible(grid, [1,1], [rows-2,cols-2])) continue;
+
+            let emptyCells = [];
+            for (let r=1; r<rows-1; r++) for (let c=1; c<cols-1; c++) 
+                if (grid[r][c]===TILES.EMPTY) emptyCells.push([r, c]);
+            
+            for (let i=0; i<baseCoinCount && emptyCells.length>0; i++) {
+                const idx = Math.floor(Math.random()*emptyCells.length);
+                const [r,c]=emptyCells.splice(idx,1)[0];
+                grid[r][c] = TILES.COIN;
+            }
+
+            let placedTraps = 0, trapAttempts = 0;
+            while (placedTraps < baseTrapCount && emptyCells.length > 0 && trapAttempts < 25) {
+                trapAttempts++;
+                const idx = Math.floor(Math.random()*emptyCells.length);
+                const [r,c] = emptyCells[idx];
+                grid[r][c] = TILES.TRAP;
+                
+                // CRITICAL FIX: Ensure a SAFE path exists avoiding this new trap
+                if (isSafePathPossible(grid, [1,1], [rows-2,cols-2])) {
+                    placedTraps++;
+                    emptyCells.splice(idx, 1);
+                } else {
+                    grid[r][c] = TILES.EMPTY; // Revert if it blocks safe path
+                }
+            }
+
+            traps.length = 0;
+            for (let r=0; r<rows; r++) for (let c=0; c<cols; c++) if (grid[r][c] === TILES.TRAP) traps.push({r,c});
             return grid;
         }
     }
-    
-    async function shiftMaze(){ actionStat.textContent='Adapting...'; let path=await findPathAStar(maze,player_pos,[MAZE_SIZE-2,MAZE_SIZE-2]); if(!path||path.length<4){setTimeout(()=>actionStat.textContent=gameMode==='human'?'Exploring':'Running...',500);return;} const [br,bc]=path[Math.floor(Math.random()*(path.length-3))+3]; if(maze[br][bc]!==TILES.EMPTY){setTimeout(()=>actionStat.textContent=gameMode==='human'?'Exploring':'Running...',500);return;} maze[br][bc]=TILES.WALL; let openable=[]; for(let r=1;r<MAZE_SIZE-1;r++)for(let c=1;c<MAZE_SIZE-1;c++){if(maze[r][c]===TILES.WALL){let emptyNeighbors=0; if(maze[r-1][c]!==TILES.WALL)emptyNeighbors++; if(maze[r+1][c]!==TILES.WALL)emptyNeighbors++; if(maze[r][c-1]!==TILES.WALL)emptyNeighbors++; if(maze[r][c+1]!==TILES.WALL)emptyNeighbors++; if(emptyNeighbors>=1)openable.push({r,c});}} openable.sort(()=>Math.random()-0.5); let isNowSolvable=false, openedWalls=[]; for(const wall of openable){if(wall.r===br&&wall.c===bc)continue; maze[wall.r][wall.c]=TILES.EMPTY; openedWalls.push(wall); if(!isNowSolvable){if(isSolvable(maze,player_pos,[MAZE_SIZE-2,MAZE_SIZE-2]))isNowSolvable=true; else{maze[wall.r][wall.c]=TILES.WALL;openedWalls.pop();}} if(isNowSolvable&&openedWalls.length>=2)break;} if(!isNowSolvable){maze[br][bc]=TILES.EMPTY;for(const w of openedWalls){maze[w.r][w.c]=TILES.WALL;}} setTimeout(()=>actionStat.textContent=gameMode==='human'?'Exploring':'Running...',500); }
 
-    // --- PAGE & CANVAS ---
-    function showPage(pageId){[loginPage,instructionsPage,gamePage].forEach(p=>p.classList.add('hidden'));document.getElementById(pageId).classList.remove('hidden');}
-    function startBackground(){let bgAnimId;function loop(){const ctx=bgCanvas.getContext('2d');ctx.clearRect(0,0,bgCanvas.width,bgCanvas.height);ctx.fillStyle='#071126';ctx.fillRect(0,0,bgCanvas.width,bgCanvas.height);const time=Date.now()/1000;ctx.globalAlpha=0.12;ctx.fillStyle='#183047';for(let i=0;i<50;i++){const x=(Math.sin(time*0.3+i)*0.5+0.5)*(bgCanvas.width+200)-100;const y=(i*47)%bgCanvas.height;ctx.fillRect(x,y,2,2);}ctx.globalAlpha=1;bgAnimId=requestAnimationFrame(loop);}cancelAnimationFrame(bgAnimId);bgAnimId=requestAnimationFrame(loop);}
-    function initCanvasSize(){CELL=parseInt(pixelScale.value,10);gameCanvas.width=MAZE_SIZE*CELL;gameCanvas.height=MAZE_SIZE*CELL;gameCtx.imageSmoothingEnabled=false;visibilityGrid=Array(MAZE_SIZE).fill(0).map(()=>Array(MAZE_SIZE).fill(!isFog));updateVisibility();drawGame();}
-    function drawGame(){gameCtx.clearRect(0,0,gameCanvas.width,gameCanvas.height);for(let r=0;r<MAZE_SIZE;r++)for(let c=0;c<MAZE_SIZE;c++){const x=c*CELL,y=r*CELL;const val=maze[r][c];if(isFog&&!visibilityGrid[r][c]){gameCtx.fillStyle='#071127';gameCtx.fillRect(x,y,CELL,CELL);continue;}switch(val){case TILES.WALL:const grad=gameCtx.createLinearGradient(x,y,x+CELL,y+CELL);grad.addColorStop(0,'#374151');grad.addColorStop(1,'#0f172a');gameCtx.fillStyle=grad;gameCtx.fillRect(x,y,CELL,CELL);gameCtx.fillStyle='rgba(255,255,255,0.03)';gameCtx.fillRect(x,y,CELL,3);break;case TILES.EXIT:const blink=Math.floor(Date.now()/300)%2===0;gameCtx.fillStyle=blink?'#e2e8f0':'#9ca3af';gameCtx.fillRect(x,y,CELL,CELL);gameCtx.strokeStyle='#0ea5e9';gameCtx.strokeRect(x+2,y+2,CELL-4,CELL-4);break;case TILES.COIN:gameCtx.fillStyle='#f59e0b';gameCtx.beginPath();gameCtx.arc(x+CELL/2,y+CELL/2,CELL*0.3,0,Math.PI*2);gameCtx.fill();break;case TILES.TRAP:const radius=CELL*(0.3+Math.sin(Date.now()/150)*0.05);gameCtx.fillStyle="rgba(239,68,68,0.8)";gameCtx.beginPath();gameCtx.arc(x+CELL/2,y+CELL/2,radius,0,Math.PI*2);gameCtx.fill();break;case TILES.START:gameCtx.fillStyle='#0ea5e9';gameCtx.fillRect(x,y,CELL,CELL);break;default:gameCtx.fillStyle='#071127';gameCtx.fillRect(x,y,CELL,CELL);gameCtx.strokeStyle='rgba(255,255,255,0.02)';gameCtx.strokeRect(x,y,CELL,CELL);break;}}if(gameMode==='solver'&&solvedPath.length>0){gameCtx.strokeStyle='rgba(56,189,248,0.3)';gameCtx.lineWidth=CELL*0.3;gameCtx.lineCap='round';gameCtx.lineJoin='round';gameCtx.beginPath();gameCtx.moveTo(solvedPath[0][1]*CELL+CELL/2,solvedPath[0][0]*CELL+CELL/2);for(let i=1;i<solvedPath.length;i++){gameCtx.lineTo(solvedPath[i][1]*CELL+CELL/2,solvedPath[i][0]*CELL+CELL/2);}gameCtx.stroke();}const px=player_pos[1]*CELL,py=player_pos[0]*CELL;if(playerImage){const scale=1.4,size=CELL*scale,offset=(size-CELL)/2;gameCtx.drawImage(playerImage,px-offset,py-offset,size,size);}else{gameCtx.fillStyle='#22d3ee';gameCtx.fillRect(px+2,py+2,CELL-4,CELL-4);}}
-    function updateVisibility(){if(!isFog)return;const view=3;visibilityGrid.forEach(row=>row.fill(false));for(let dr=-view;dr<=view;dr++)for(let dc=-view;dc<=view;dc++){const nr=player_pos[0]+dr,nc=player_pos[1]+dc;if(nr>=0&&nr<MAZE_SIZE&&nc>=0&&nc<MAZE_SIZE&&Math.abs(dr)+Math.abs(dc)<=view)visibilityGrid[nr][nc]=true;}}
+    // --- DYNAMIC SHIFTING WITH BRIDGE BUILDER ---
+    async function shiftMaze() {
+        actionStat.textContent = 'Shifting...';
+        
+        // 1. Find current optimal path to disrupt
+        let path = await findPathAStar(maze, player_pos, [MAZE_SIZE-2, MAZE_SIZE-2]);
+        if (!path || path.length < 5) {
+            actionStat.textContent = 'Stabilized'; 
+            return;
+        }
 
-    // --- AGENT & MOVEMENT ---
-    async function moveAgent(){
-        const [r, c] = player_pos;
-        for(const [dr, dc] of [[0,0], [0,1], [0,-1], [1,0], [-1,0]]){ const nr = r + dr, nc = c + dc; if(nr >= 0 && nr < MAZE_SIZE && nc >= 0 && nc < MAZE_SIZE){ aiMemoryGrid[nr][nc] = maze[nr][nc]; if(maze[nr][nc] === TILES.EXIT) aiTarget = [nr, nc]; } }
-        let aiPath = null;
-        if (aiTarget) { actionStat.textContent='Targeting Exit...'; aiPath=await findPathAStar(aiMemoryGrid,player_pos,aiTarget); if(!aiPath){ actionStat.textContent='Path Blocked!'; aiTarget=null; }}
-        if (!aiPath) {
-            actionStat.textContent = 'Exploring...'; let frontier = [];
-            for(let i=1; i<MAZE_SIZE-1; i++) for(let j=1; j<MAZE_SIZE-1; j++){
-                if (aiMemoryGrid[i][j] === TILES.EMPTY) {
-                    for(const [dr,dc] of [[0,1],[0,-1],[1,0],[-1,0]]){
-                        const nr=i+dr, nc=j+dc;
-                        if(aiMemoryGrid[nr] && aiMemoryGrid[nr][nc] === null){
-                            frontier.push({r:nr, c:nc, dist:Math.abs(nr - player_pos[0]) + Math.abs(nc - player_pos[1])});
-                        }
+        const blockIndex = Math.floor(Math.random() * (path.length - 4)) + 2;
+        const [br, bc] = path[blockIndex];
+
+        if (maze[br][bc] !== TILES.EMPTY) return; 
+
+        // 2. Temporarily Block
+        maze[br][bc] = TILES.WALL;
+
+        // 3. Verify Safe Connectivity. If broken, try to build a bridge.
+        if (!isSafePathPossible(maze, player_pos, [MAZE_SIZE-2, MAZE_SIZE-2])) {
+            actionStat.textContent = 'Rerouting...';
+            const reachableFromStart = getReachableSet(maze, player_pos);
+            const reachableFromEnd = getReachableSet(maze, [MAZE_SIZE-2, MAZE_SIZE-2]);
+
+            // Find walls that separate Start-Set and End-Set
+            let candidates = [];
+            for (let r = 1; r < MAZE_SIZE - 1; r++) {
+                for (let c = 1; c < MAZE_SIZE - 1; c++) {
+                    if (maze[r][c] === TILES.WALL && (r!==br || c!==bc)) {
+                        let touchesStart = false, touchesEnd = false;
+                        [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr, dc]) => {
+                             if (reachableFromStart.has(`${r+dr},${c+dc}`)) touchesStart = true;
+                             if (reachableFromEnd.has(`${r+dr},${c+dc}`)) touchesEnd = true;
+                        });
+                        if (touchesStart && touchesEnd) candidates.push({r,c});
                     }
                 }
             }
-            if (frontier.length > 0) {
-                frontier.sort((a,b) => a.dist-b.dist);
-                const bestTarget = frontier[0];
-                aiPath = await findPathAStar(aiMemoryGrid, player_pos, [bestTarget.r, bestTarget.c]);
+
+            if (candidates.length > 0) {
+                const bridge = candidates[Math.floor(Math.random() * candidates.length)];
+                maze[bridge.r][bridge.c] = TILES.EMPTY; // Open bridge
+                gsap.fromTo('#game-area', {borderColor: '#ef4444'}, {borderColor: 'rgba(71,85,105,.35)', duration: 0.5});
+            } else {
+                // If no bridge possible, revert the block
+                maze[br][bc] = TILES.EMPTY; 
+                actionStat.textContent = 'Shift Failed';
             }
         }
-        if (aiPath && aiPath.length > 1) return aiPath[1];
-        return null;
-    }
-    let lastMoveTime = 0;
-    async function processMovement() {
-        if(gameState!=='running'||Date.now()-lastMoveTime<120)return; let dx=0,dy=0;
-        if(gameMode==='human'){if(keysPressed.ArrowUp)dy=-1;else if(keysPressed.ArrowDown)dy=1;else if(keysPressed.ArrowLeft)dx=-1;else if(keysPressed.ArrowRight)dx=1;}
-        else if(gameMode==='solver'){if(pathIndex<solvedPath.length){const [nextR,nextC]=solvedPath[pathIndex];dy=nextR-player_pos[0];dx=nextC-player_pos[1];pathIndex++;}}
-        else if(gameMode==='explorer'){const nextStep=await moveAgent();if(nextStep){const [nextR,nextC]=nextStep;dy=nextR-player_pos[0];dx=nextC-player_pos[1];}}
-        if(dx===0&&dy===0)return; lastMoveTime=Date.now();
-        const newR=player_pos[0]+dy, newC=player_pos[1]+dx; const targetTile=maze[newR]&&maze[newR][newC];
-        if(targetTile!==undefined&&targetTile!==TILES.WALL){player_pos=[newR,newC];moves++;movesUntilShift--;if(gameMode==='explorer'){lastAiMoveTimestamp=Date.now();}if(targetTile===TILES.COIN){coinsCollected++;maze[newR][newC]=TILES.EMPTY;} if(targetTile===TILES.TRAP){trapFalls++;player_pos=[1,1];if(gameMode==='explorer'){aiMemoryGrid[newR][newC]=TILES.TRAP;actionStat.textContent='Trapped!';setTimeout(()=>actionStat.textContent='Running...',1000);}} if(targetTile===TILES.EXIT){handleWin();return;} if(envMode==='dynamic'&&movesUntilShift<=0&&gameMode!=='solver'){await shiftMaze();movesUntilShift=currentShiftInterval;} updateVisibility();}
-        else{if(targetTile===TILES.WALL)wallCollisions++; if(gameMode==='human')gsap.fromTo('#game-area',{x:0},{x:6,duration:0.06,yoyo:true,repeat:3,onComplete:()=>gsap.set('#game-area',{x:0})}); else if(gameMode==='explorer'){actionStat.textContent='Obstacle!';if(targetTile===TILES.WALL)aiMemoryGrid[newR][newC]=TILES.WALL;}}
-    }
-    async function gameLoop(){
-        if(gameState!=='running')return;
-        if (gameMode === 'explorer' && gameState === 'running' && Date.now() - lastAiMoveTimestamp > 5000) {
-            actionStat.textContent = 'Stuck! Restarting level...';
-            setTimeout(() => resetAndStartLevel(null), 1000);
-            return;
-        }
-        await processMovement();drawGame(); levelStat.textContent=level;timeStat.textContent=`${Math.floor((Date.now()-startTime)/1000)}s`; movesStat.textContent=moves;shiftsStat.textContent=movesUntilShift;trapsStat.textContent=traps.length;coinsStat.textContent=coinsCollected; difficultyStat.textContent=difficultyNames[difficultyLevel]; animationFrameId=requestAnimationFrame(gameLoop);
+        
+        setTimeout(() => actionStat.textContent = gameMode==='human'?'Exploring':'Running...', 800);
     }
 
-    // --- GAME STATE MANAGEMENT ---
-    function handleWin(){ gameState='stopped';setControlsEnabled(true); const playerTime=(Date.now()-startTime)/1000; const state=evaluatePerformance(playerTime,moves,coinsCollected,wallCollisions,trapFalls); const actionIndex=chooseAction(state); const reward=(state===0?0.5:(state===2?-0.5:0))+(coinsCollected*0.1); updateQ(prev_state,prev_action,state,reward);updateQTableDisplay(); prev_state=state;prev_action=actionIndex;saveQTable(); level++;actionStat.textContent=`Level ${level-1} Complete!`; setTimeout(()=>resetAndStartLevel(actionIndex),1500); }
+    // --- VISUALS ---
+    function showPage(pageId) { [loginPage, instructionsPage, gamePage].forEach(p => p.classList.add('hidden')); document.getElementById(pageId).classList.remove('hidden'); }
+    function startBackground() { let bgAnimId; function loop(){ const ctx=bgCanvas.getContext('2d'); ctx.clearRect(0,0,bgCanvas.width,bgCanvas.height); ctx.fillStyle='#071126'; ctx.fillRect(0,0,bgCanvas.width,bgCanvas.height); const time=Date.now()/1000; ctx.globalAlpha=0.12; ctx.fillStyle='#183047'; for(let i=0;i<50;i++){const x=(Math.sin(time*0.3+i)*0.5+0.5)*(bgCanvas.width+200)-100;const y=(i*47)%bgCanvas.height;ctx.fillRect(x,y,2,2);} ctx.globalAlpha=1; bgAnimId=requestAnimationFrame(loop); } cancelAnimationFrame(bgAnimId); bgAnimId=requestAnimationFrame(loop); }
+    function initCanvasSize() { CELL=parseInt(pixelScale.value,10); gameCanvas.width=MAZE_SIZE*CELL; gameCanvas.height=MAZE_SIZE*CELL; gameCtx.imageSmoothingEnabled=false; visibilityGrid=Array(MAZE_SIZE).fill(0).map(()=>Array(MAZE_SIZE).fill(!isFog)); updateVisibility(); drawGame(); }
+    
+    function drawGame() { 
+        gameCtx.clearRect(0,0,gameCanvas.width,gameCanvas.height); 
+        for(let r=0; r<MAZE_SIZE; r++) for(let c=0; c<MAZE_SIZE; c++){ 
+            const x=c*CELL, y=r*CELL; const val=maze[r][c]; 
+            if(isFog&&!visibilityGrid[r][c]){gameCtx.fillStyle='#071127'; gameCtx.fillRect(x,y,CELL,CELL); continue;} 
+            switch(val){ 
+                case TILES.WALL: 
+                    const grad=gameCtx.createLinearGradient(x,y,x+CELL,y+CELL); grad.addColorStop(0,'#374151'); grad.addColorStop(1,'#0f172a'); gameCtx.fillStyle=grad; gameCtx.fillRect(x,y,CELL,CELL); gameCtx.fillStyle='rgba(255,255,255,0.03)'; gameCtx.fillRect(x,y,CELL,3); break; 
+                case TILES.EXIT: 
+                    const blink=Math.floor(Date.now()/300)%2===0; gameCtx.fillStyle=blink?'#e2e8f0':'#9ca3af'; gameCtx.fillRect(x,y,CELL,CELL); gameCtx.strokeStyle='#0ea5e9'; gameCtx.strokeRect(x+2,y+2,CELL-4,CELL-4); break; 
+                case TILES.COIN: 
+                    gameCtx.fillStyle='#f59e0b'; gameCtx.beginPath(); gameCtx.arc(x+CELL/2,y+CELL/2,CELL*0.3,0,Math.PI*2); gameCtx.fill(); break; 
+                case TILES.TRAP: 
+                    const radius=CELL*(0.3+Math.sin(Date.now()/150)*0.05); gameCtx.fillStyle="rgba(239,68,68,0.8)"; gameCtx.beginPath(); gameCtx.arc(x+CELL/2,y+CELL/2,radius,0,Math.PI*2); gameCtx.fill(); break; 
+                case TILES.START: 
+                    gameCtx.fillStyle='#0ea5e9'; gameCtx.fillRect(x,y,CELL,CELL); break; 
+                default: 
+                    gameCtx.fillStyle='#071127'; gameCtx.fillRect(x,y,CELL,CELL); gameCtx.strokeStyle='rgba(255,255,255,0.02)'; gameCtx.strokeRect(x,y,CELL,CELL); break; 
+            } 
+        } 
+        if(gameMode==='solver'&&solvedPath.length>0){
+            gameCtx.strokeStyle='rgba(56,189,248,0.3)'; gameCtx.lineWidth=CELL*0.3; gameCtx.lineCap='round'; gameCtx.lineJoin='round'; gameCtx.beginPath(); 
+            gameCtx.moveTo(solvedPath[0][1]*CELL+CELL/2,solvedPath[0][0]*CELL+CELL/2); 
+            for(let i=1;i<solvedPath.length;i++){gameCtx.lineTo(solvedPath[i][1]*CELL+CELL/2,solvedPath[i][0]*CELL+CELL/2);} gameCtx.stroke();
+        } 
+        const px=player_pos[1]*CELL, py=player_pos[0]*CELL; 
+        if(playerImage){const scale=1.4, size=CELL*scale, offset=(size-CELL)/2; gameCtx.drawImage(playerImage,px-offset,py-offset,size,size);} 
+        else {gameCtx.fillStyle='#22d3ee'; gameCtx.fillRect(px+2,py+2,CELL-4,CELL-4);} 
+    }
+    
+    function updateVisibility() { if(!isFog) return; const view=3; visibilityGrid.forEach(row=>row.fill(false)); for(let dr=-view;dr<=view;dr++) for(let dc=-view;dc<=view;dc++){const nr=player_pos[0]+dr, nc=player_pos[1]+dc; if(nr>=0&&nr<MAZE_SIZE&&nc>=0&&nc<MAZE_SIZE&&Math.abs(dr)+Math.abs(dc)<=view)visibilityGrid[nr][nc]=true;} }
+
+    // --- SMART AI EXPLORER AGENT ---
+    async function moveAgent(){ 
+        const [r, c]=player_pos; 
+        
+        // 1. Scan Surroundings
+        for(const [dr, dc] of [[0,0],[0,1],[0,-1],[1,0],[-1,0]]){
+            const nr=r+dr, nc=c+dc; 
+            if(nr>=0&&nr<MAZE_SIZE&&nc>=0&&nc<MAZE_SIZE){
+                if (aiMemoryGrid[nr][nc] !== TILES.TRAP) aiMemoryGrid[nr][nc] = maze[nr][nc]; 
+                if(maze[nr][nc]===TILES.EXIT) aiTarget=[nr, nc];
+            }
+        } 
+
+        // 2. Determine Goal
+        let aiPath=null; 
+        if(aiTarget){
+            actionStat.textContent='Targeting Exit...'; 
+            aiPath=await findPathAStar(aiMemoryGrid, player_pos, aiTarget, true); 
+        }
+
+        if(!aiPath){
+            actionStat.textContent='Exploring...'; 
+            let unknowns = [];
+            for(let i=1;i<MAZE_SIZE-1;i++) for(let j=1;j<MAZE_SIZE-1;j++) {
+                if(aiMemoryGrid[i][j]===null) {
+                     let adjacentToKnown = false;
+                     for(const [dr,dc] of [[0,1],[0,-1],[1,0],[-1,0]]){
+                         const nr=i+dr, nc=j+dc;
+                         if(aiMemoryGrid[nr][nc] !== null && aiMemoryGrid[nr][nc] !== TILES.WALL && aiMemoryGrid[nr][nc] !== TILES.TRAP) {
+                             adjacentToKnown = true; break;
+                         }
+                     }
+                     if(adjacentToKnown) {
+                         const distToPlayer = Math.abs(i-player_pos[0])+Math.abs(j-player_pos[1]);
+                         const distToGoal = Math.abs(i-(MAZE_SIZE-2))+Math.abs(j-(MAZE_SIZE-2));
+                         unknowns.push({r:i, c:j, score: distToPlayer + (distToGoal*0.5)});
+                     }
+                }
+            }
+            if(unknowns.length>0){
+                unknowns.sort((a,b)=>a.score-b.score);
+                for(let k=0; k<Math.min(3, unknowns.length); k++) {
+                    aiPath = await findPathAStar(aiMemoryGrid, player_pos, [unknowns[k].r, unknowns[k].c], true);
+                    if(aiPath) break;
+                }
+            }
+        }
+
+        // 3. Execute Move (Fix: use index 1)
+        if(aiPath && aiPath.length > 1) return aiPath[1]; 
+
+        // Fallback: Random safe move if stuck
+        const validMoves = [];
+        for(const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]){
+            const nr = r+dr, nc = c+dc;
+            if(nr>=0 && nr<MAZE_SIZE && nc>=0 && nc<MAZE_SIZE){
+                 const t = aiMemoryGrid[nr][nc];
+                 if(t !== TILES.WALL && t !== TILES.TRAP && t !== null) validMoves.push([nr,nc]);
+            }
+        }
+        if(validMoves.length > 0) return validMoves[Math.floor(Math.random() * validMoves.length)];
+
+        actionStat.textContent='Stuck!';
+        return null; 
+    }
+
+    let lastMoveTime = 0;
+    async function processMovement() {
+        if(gameState!=='running'||Date.now()-lastMoveTime<120)return; 
+        let dx=0,dy=0;
+        
+        if(gameMode==='human'){if(keysPressed.ArrowUp)dy=-1;else if(keysPressed.ArrowDown)dy=1;else if(keysPressed.ArrowLeft)dx=-1;else if(keysPressed.ArrowRight)dx=1;}
+        else if(gameMode==='solver'){if(pathIndex<solvedPath.length){const [nextR,nextC]=solvedPath[pathIndex];dy=nextR-player_pos[0];dx=nextC-player_pos[1];pathIndex++;}}
+        else if(gameMode==='explorer'){const nextStep=await moveAgent();if(nextStep){dy=nextStep[0]-player_pos[0];dx=nextStep[1]-player_pos[1];}}
+        
+        if(dx===0&&dy===0)return; 
+        lastMoveTime=Date.now();
+        
+        const newR=player_pos[0]+dy, newC=player_pos[1]+dx; 
+        const targetTile=maze[newR]&&maze[newR][newC];
+        
+        if(targetTile!==undefined && targetTile!==TILES.WALL){
+            player_pos=[newR,newC];
+            moves++; movesUntilShift--;
+            
+            if(gameMode==='explorer'){aiMemoryGrid[newR][newC] = targetTile;} // Update memory
+            
+            if(targetTile===TILES.COIN){coinsCollected++;maze[newR][newC]=TILES.EMPTY;} 
+            
+            if(targetTile===TILES.TRAP){
+                trapFalls++;
+                if(gameMode==='explorer'){
+                    actionStat.textContent='TRAP!';
+                    aiMemoryGrid[newR][newC] = TILES.TRAP; // PERMANENTLY MARK TRAP
+                    player_pos=[1,1]; // Reset position
+                } else {
+                    player_pos=[1,1];
+                }
+                gsap.to('#game-area', {backgroundColor: 'rgba(239,68,68,0.2)', duration: 0.1, yoyo: true, repeat: 1, onComplete: ()=>gsap.set('#game-area', {backgroundColor: 'var(--card-bg)'})});
+            } 
+            
+            if(targetTile===TILES.EXIT){handleWin();return;} 
+            
+            if(envMode==='dynamic' && movesUntilShift<=0 && gameMode!=='solver'){
+                await shiftMaze();
+                movesUntilShift=currentShiftInterval;
+            } 
+            updateVisibility();
+        } else {
+            if(targetTile===TILES.WALL) wallCollisions++; 
+            if(gameMode==='human') gsap.fromTo('#game-area',{x:0},{x:6,duration:0.06,yoyo:true,repeat:3,onComplete:()=>gsap.set('#game-area',{x:0})}); 
+            else if(gameMode==='explorer' && targetTile===TILES.WALL) aiMemoryGrid[newR][newC]=TILES.WALL;
+        }
+    }
+
+    async function gameLoop(){
+        if(gameState!=='running')return; 
+        await processMovement();
+        drawGame(); 
+        levelStat.textContent=level;
+        timeStat.textContent=`${Math.floor((Date.now()-startTime)/1000)}s`; 
+        movesStat.textContent=moves;
+        shiftsStat.textContent=movesUntilShift;
+        trapsStat.textContent=traps.length;
+        coinsStat.textContent=coinsCollected; 
+        difficultyStat.textContent=difficultyNames[difficultyLevel]; 
+        animationFrameId=requestAnimationFrame(gameLoop);
+    }
+
+    // --- GAME STATE MANAGEMENT & DIFFICULTY ADJUSTMENT ---
+    function handleWin(){ 
+        gameState='stopped'; setControlsEnabled(true); 
+        const playerTime=(Date.now()-startTime)/1000; 
+        
+        // 1. Calculate Performance State (0=Fast/Easy, 1=Medium, 2=Slow/Hard)
+        const state=evaluatePerformance(playerTime,moves,coinsCollected,wallCollisions,trapFalls); 
+        
+        // 2. AI Chooses Action (Increase, Keep, Decrease Difficulty)
+        const actionIndex=chooseAction(state); 
+        
+        // 3. Reward Function
+        let reward = -0.5;
+        if ((state === 0 && actionIndex === 0) || (state === 2 && actionIndex === 2) || (state === 1 && actionIndex === 1)) {
+            reward = 1.0;
+        }
+
+        updateQ(prev_state,prev_action,state,reward);
+        updateQTableDisplay(); 
+        
+        prev_state=state; prev_action=actionIndex; saveQTable(); 
+        
+        level++; 
+        actionStat.textContent=`Level ${level-1} Complete!`; 
+        setTimeout(()=>resetAndStartLevel(actionIndex),1500); 
+    }
+
     async function resetAndStartLevel(actionIndex=null){
         setControlsEnabled(true);
-        if(envMode==='static')shiftsStatWrapper.classList.add('hidden'); else shiftsStatWrapper.classList.remove('hidden');
-        if(actionIndex !== null){
-            if (trapFalls >= 4) {
-                actionStat.textContent = `AI: Too many traps! Making it easier.`;
-                difficultyLevel = Math.max(0, difficultyLevel - 1);
-            } else {
-                const difficultyAction = AI_ACTIONS[actionIndex];
-                actionStat.textContent = `AI: ${difficultyAction} Difficulty`;
-                if(difficultyAction === "Increase"){ difficultyLevel = Math.min(2, difficultyLevel + 1); if(envMode==='dynamic') currentShiftInterval = Math.max(5, currentShiftInterval-1); }
-                else if(difficultyAction === "Decrease"){ difficultyLevel = Math.max(0, difficultyLevel - 1); if(envMode==='dynamic') currentShiftInterval = Math.min(15, currentShiftInterval+1); }
-            }
-        } else actionStat.textContent = 'Generating...';
+        if(envMode==='static') shiftsStatWrapper.classList.add('hidden'); else shiftsStatWrapper.classList.remove('hidden');
         
-        lastAiMoveTimestamp = Date.now();
+        if(actionIndex !== null){
+            const actionName = AI_ACTIONS[actionIndex];
+            actionStat.textContent = `AI: ${actionName} Difficulty`;
+            
+            // STRICT DIFFICULTY ENFORCEMENT
+            if(actionIndex === 0) { // Increase
+                difficultyLevel = Math.min(2, difficultyLevel + 1);
+                currentShiftInterval = Math.max(5, currentShiftInterval - 2);
+            } else if (actionIndex === 2) { // Decrease
+                difficultyLevel = Math.max(0, difficultyLevel - 1);
+                currentShiftInterval = Math.min(15, currentShiftInterval + 2);
+            }
+        } else {
+            actionStat.textContent = 'Generating...';
+        }
+
         maze=generateMaze(MAZE_SIZE,MAZE_SIZE);
         player_pos=[1,1]; startTime=Date.now(); moves=0; coinsCollected=0; wallCollisions=0; trapFalls=0; movesUntilShift=currentShiftInterval;
         visibilityGrid=Array(MAZE_SIZE).fill(0).map(()=>Array(MAZE_SIZE).fill(!isFog)); updateVisibility();
-        aiMemoryGrid=Array(MAZE_SIZE).fill(0).map(()=>Array(MAZE_SIZE).fill(null)); aiTarget=null;
+        
+        // Reset AI Explorer Memory completely for new level
+        aiMemoryGrid=Array(MAZE_SIZE).fill(0).map(()=>Array(MAZE_SIZE).fill(null)); 
+        aiTarget=null; 
+        
         solvedPath=[]; pathIndex=0;
-        if(gameMode==='solver'){ actionStat.textContent='Calculating Path...'; solvedPath=await findPathAStar(maze, [1,1], [MAZE_SIZE-2, MAZE_SIZE-2])||[]; actionStat.textContent=solvedPath.length>0 ? 'Executing Path' : 'No Path Found'; }
-        else{ actionStat.textContent = gameMode==='human' ? 'Exploring' : 'Running...'; }
+        if(gameMode==='solver'){ 
+            actionStat.textContent='Calculating Path...'; 
+            solvedPath=await findPathAStar(maze, [1,1], [MAZE_SIZE-2, MAZE_SIZE-2])||[]; 
+            actionStat.textContent=solvedPath.length>0 ? 'Executing Path' : 'No Path Found'; 
+        } else { 
+            actionStat.textContent = gameMode==='human' ? 'Exploring' : 'Running...'; 
+        }
+        
         initCanvasSize(); gameState='running';
         if(animationFrameId) cancelAnimationFrame(animationFrameId);
         animationFrameId=requestAnimationFrame(gameLoop);
     }
-    function togglePause(){if(gameState==='running'){gameState='paused';timePaused=Date.now();cancelAnimationFrame(animationFrameId);pauseOverlay.classList.remove('hidden');pauseBtn.textContent='Resume';}else if(gameState==='paused'){gameState='running';startTime+=(Date.now()-timePaused);pauseOverlay.classList.add('hidden');pauseBtn.textContent='Pause';animationFrameId=requestAnimationFrame(gameLoop);}}
+
+    function togglePause(){
+        if(gameState==='running'){gameState='paused';timePaused=Date.now();cancelAnimationFrame(animationFrameId);pauseOverlay.classList.remove('hidden');pauseBtn.textContent='Resume';}
+        else if(gameState==='paused'){gameState='running';startTime+=(Date.now()-timePaused);pauseOverlay.classList.add('hidden');pauseBtn.textContent='Pause';animationFrameId=requestAnimationFrame(gameLoop);}
+    }
     
     function loadAssets(callback){let assetsLoaded=0;const totalAssets=1;const img=new Image();img.src='pc.png';img.onload=()=>{assetsLoaded++;playerImage=img;if(assetsLoaded>=totalAssets)callback();};img.onerror=()=>{console.error("Failed to load 'pc.png'. Using fallback.");assetsLoaded++;if(assetsLoaded>=totalAssets)callback();};}
 
     // --- EVENT LISTENERS ---
     function setupEventListeners() {
         loginButton.addEventListener('click',()=>showPage('instructions-page'));
-        startGameButton.addEventListener('click',()=>{showPage('game-page');level=1;difficultyLevel=0;currentShiftInterval=DEFAULT_SHIFT_INTERVAL;loadQTable();updateQTableDisplay();resetAndStartLevel();});
+        startGameButton.addEventListener('click',()=>{showPage('game-page');level=1;difficultyLevel=1;currentShiftInterval=DEFAULT_SHIFT_INTERVAL;loadQTable();updateQTableDisplay();resetAndStartLevel();});
         menuBtn.addEventListener('click',()=>{gameState='stopped';cancelAnimationFrame(animationFrameId);setControlsEnabled(true);showPage('login-page');});
         pauseBtn.addEventListener('click',togglePause);
         pauseOverlay.addEventListener('click',togglePause);
         resetAiBtn.addEventListener('click',resetQTable);
-        function handleModeChange(){setControlsEnabled(true);level=1;difficultyLevel=0;currentShiftInterval=DEFAULT_SHIFT_INTERVAL;resetAndStartLevel();}
+        function handleModeChange(){setControlsEnabled(true);level=1;difficultyLevel=1;currentShiftInterval=DEFAULT_SHIFT_INTERVAL;resetAndStartLevel();}
         gameModeSelect.addEventListener('change',(e)=>{gameMode=e.target.value;handleModeChange();});
         mazeTypeSelect.addEventListener('change',(e)=>{mazeType=e.target.value;handleModeChange();});
         envModeSelect.addEventListener('change',(e)=>{envMode=e.target.value;handleModeChange();});
