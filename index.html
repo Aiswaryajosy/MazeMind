@@ -211,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let visibilityGrid = [], traps = [], solvedPath = [], pathIndex = 0;
     const keysPressed = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
     let playerImage = null;
+    let mercyTriggered = false; // To track if we've already helped in this level
 
     // --- DOM ELEMENTS ---
     const [bgCanvas, gameCanvas] = [document.getElementById('bg-canvas'), document.getElementById('game-canvas')];
@@ -249,9 +250,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadQTable() { try { const savedQ = localStorage.getItem('mazeMindQTable'); Q_TABLE = savedQ ? JSON.parse(savedQ) : getDefaultQTable(); } catch (e) { Q_TABLE = getDefaultQTable(); } }
     function getDefaultQTable() { 
         return [
-            [2.0, 0.5, -1.0], // Fast
-            [0.5, 2.0, 0.5],  // Medium
-            [-1.0, 0.5, 2.0]  // Slow
+            [2.0, 0.5, -1.0], // Fast: Prefer Increase
+            [0.5, 2.0, 0.5],  // Medium: Prefer Keep
+            [-1.0, 0.5, 2.0]  // Slow: Prefer Decrease
         ];
     }
     function saveQTable() { localStorage.setItem('mazeMindQTable', JSON.stringify(Q_TABLE)); }
@@ -264,15 +265,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function evaluatePerformance(time, moves, coins, collisions, trapFalls) {
-        let score = time + (moves * 0.5) + (collisions * 2) + (trapFalls * 10) - (coins * 5);
-        const fastThreshold = 25 + (difficultyLevel * 10);
-        const mediumThreshold = 55 + (difficultyLevel * 15);
-        if (score < fastThreshold) return 0; // Fast/Easy
-        if (score < mediumThreshold) return 1; // Medium
-        return 2; // Slow/Hard
+        // Dynamic Scoring based on difficulty
+        let baseTime = 15 + (difficultyLevel * 10);
+        let score = time + (moves * 0.2) + (collisions * 1) + (trapFalls * 5);
+        
+        if (score < baseTime) return 0; // Fast
+        if (score < baseTime * 2.5) return 1; // Medium
+        return 2; // Slow
     }
     
     function chooseAction(state) {
+        // Epsilon-greedy: 10% random exploration, 90% greedy based on Q-Table
         if (Math.random() < 0.1) return Math.floor(Math.random() * AI_ACTIONS.length);
         const maxVal = Math.max(...Q_TABLE[state]);
         const indices = Q_TABLE[state].map((val, idx) => val === maxVal ? idx : -1).filter(idx => idx !== -1);
@@ -287,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Q_TABLE[pState][pAction] = oldVal + alpha * (reward + gamma * nextMax - oldVal);
     }
 
-    // --- PATHFINDING & SOLVABILITY CHECKS ---
+    // --- PATHFINDING ---
     async function findPathAStar(grid, start, end, treatNullAsEmpty = false) {
         class Node { constructor(p, pos) { this.parent=p; this.pos=pos; this.g=0; this.h=0; this.f=0; } }
         const startNode = new Node(null, start);
@@ -349,19 +352,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return visited;
     }
 
-    // STRICT: Only checks if destination is reachable via safe tiles (No Walls, No Traps)
     function isSafePathPossible(grid, start, end) {
         const reachable = getReachableSet(grid, start);
         return reachable.has(`${end[0]},${end[1]}`);
     }
 
-    // --- ROBUST MAZE GENERATION ---
+    // --- MAZE GENERATION ---
     function generateMaze(rows, cols) {
         let wallDensity, loopChance, baseTrapCount, baseCoinCount;
         switch (difficultyLevel) {
-            case 0: wallDensity = 0.20; loopChance = 0.20; baseTrapCount = 0; baseCoinCount = 10; break;
-            case 2: wallDensity = 0.32; loopChance = 0.05; baseTrapCount = 5; baseCoinCount = 4; break;
-            case 1: default: wallDensity = 0.25; loopChance = 0.10; baseTrapCount = 3; baseCoinCount = 6; break;
+            case 0: wallDensity = 0.15; loopChance = 0.30; baseTrapCount = 0; baseCoinCount = 12; break; // Easy
+            case 2: wallDensity = 0.35; loopChance = 0.05; baseTrapCount = 6; baseCoinCount = 4; break; // Hard
+            case 1: default: wallDensity = 0.25; loopChance = 0.15; baseTrapCount = 3; baseCoinCount = 8; break; // Medium
         }
 
         while (true) {
@@ -414,13 +416,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const idx = Math.floor(Math.random()*emptyCells.length);
                 const [r,c] = emptyCells[idx];
                 grid[r][c] = TILES.TRAP;
-                
-                // CRITICAL FIX: Ensure a SAFE path exists avoiding this new trap
                 if (isSafePathPossible(grid, [1,1], [rows-2,cols-2])) {
                     placedTraps++;
                     emptyCells.splice(idx, 1);
                 } else {
-                    grid[r][c] = TILES.EMPTY; // Revert if it blocks safe path
+                    grid[r][c] = TILES.EMPTY; 
                 }
             }
 
@@ -430,32 +430,78 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- DYNAMIC SHIFTING WITH BRIDGE BUILDER ---
+    // --- REAL-TIME DIFFICULTY ADJUSTMENT (DYNAMIC MODE) ---
+    function checkDynamicPerformance() {
+        if (gameState !== 'running' || mercyTriggered || envMode !== 'dynamic') return;
+        const elapsedTime = (Date.now() - startTime) / 1000;
+        
+        // "Taking too much time" thresholds
+        const timeLimit = 40 + (difficultyLevel * 20); 
+        const moveLimit = 60 + (difficultyLevel * 20);
+
+        if (elapsedTime > timeLimit || moves > moveLimit) {
+            triggerMercyRule();
+        }
+    }
+
+    function triggerMercyRule() {
+        mercyTriggered = true;
+        actionStat.textContent = 'AI: Helping!';
+        difficultyLevel = Math.max(0, difficultyLevel - 1); // Drop difficulty dynamically
+        difficultyStat.textContent = difficultyNames[difficultyLevel] + " (Mercy)";
+        
+        // Remove random walls to open paths
+        let wallsRemoved = 0;
+        for(let r=1; r<MAZE_SIZE-1; r++) {
+            for(let c=1; c<MAZE_SIZE-1; c++) {
+                if(maze[r][c] === TILES.WALL && Math.random() < 0.15) {
+                    maze[r][c] = TILES.EMPTY;
+                    if(gameMode === 'explorer') aiMemoryGrid[r][c] = TILES.EMPTY;
+                    wallsRemoved++;
+                }
+            }
+        }
+        
+        // Remove some traps
+        for(let i = 0; i < traps.length; i++) {
+            if(Math.random() < 0.5) {
+                maze[traps[i].r][traps[i].c] = TILES.EMPTY;
+                if(gameMode === 'explorer') aiMemoryGrid[traps[i].r][traps[i].c] = TILES.EMPTY;
+            }
+        }
+        traps = traps.filter(t => maze[t.r][t.c] === TILES.TRAP);
+        trapsStat.textContent = traps.length;
+        
+        // Visual feedback
+        gsap.to('#game-area', {borderColor: '#34d399', duration: 0.5, yoyo: true, repeat: 1, onComplete: () => gsap.set('#game-area', {borderColor: 'rgba(71,85,105,.35)'})});
+    }
+
+    // --- DYNAMIC SHIFTING ---
     async function shiftMaze() {
         actionStat.textContent = 'Shifting...';
         
-        // 1. Find current optimal path to disrupt
-        let path = await findPathAStar(maze, player_pos, [MAZE_SIZE-2, MAZE_SIZE-2]);
-        if (!path || path.length < 5) {
-            actionStat.textContent = 'Stabilized'; 
+        // If dynamic mode and user is struggling, trigger mercy INSTEAD of blocking
+        const elapsedTime = (Date.now() - startTime) / 1000;
+        if (elapsedTime > 30 && moves > 40) {
+            triggerMercyRule();
             return;
         }
+
+        let path = await findPathAStar(maze, player_pos, [MAZE_SIZE-2, MAZE_SIZE-2]);
+        if (!path || path.length < 5) { actionStat.textContent = 'Stabilized'; return; }
 
         const blockIndex = Math.floor(Math.random() * (path.length - 4)) + 2;
         const [br, bc] = path[blockIndex];
 
         if (maze[br][bc] !== TILES.EMPTY) return; 
 
-        // 2. Temporarily Block
         maze[br][bc] = TILES.WALL;
 
-        // 3. Verify Safe Connectivity. If broken, try to build a bridge.
         if (!isSafePathPossible(maze, player_pos, [MAZE_SIZE-2, MAZE_SIZE-2])) {
             actionStat.textContent = 'Rerouting...';
             const reachableFromStart = getReachableSet(maze, player_pos);
             const reachableFromEnd = getReachableSet(maze, [MAZE_SIZE-2, MAZE_SIZE-2]);
 
-            // Find walls that separate Start-Set and End-Set
             let candidates = [];
             for (let r = 1; r < MAZE_SIZE - 1; r++) {
                 for (let c = 1; c < MAZE_SIZE - 1; c++) {
@@ -472,10 +518,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (candidates.length > 0) {
                 const bridge = candidates[Math.floor(Math.random() * candidates.length)];
-                maze[bridge.r][bridge.c] = TILES.EMPTY; // Open bridge
+                maze[bridge.r][bridge.c] = TILES.EMPTY; 
                 gsap.fromTo('#game-area', {borderColor: '#ef4444'}, {borderColor: 'rgba(71,85,105,.35)', duration: 0.5});
             } else {
-                // If no bridge possible, revert the block
                 maze[br][bc] = TILES.EMPTY; 
                 actionStat.textContent = 'Shift Failed';
             }
@@ -524,8 +569,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- SMART AI EXPLORER AGENT ---
     async function moveAgent(){ 
         const [r, c]=player_pos; 
-        
-        // 1. Scan Surroundings
         for(const [dr, dc] of [[0,0],[0,1],[0,-1],[1,0],[-1,0]]){
             const nr=r+dr, nc=c+dc; 
             if(nr>=0&&nr<MAZE_SIZE&&nc>=0&&nc<MAZE_SIZE){
@@ -533,14 +576,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(maze[nr][nc]===TILES.EXIT) aiTarget=[nr, nc];
             }
         } 
-
-        // 2. Determine Goal
         let aiPath=null; 
         if(aiTarget){
             actionStat.textContent='Targeting Exit...'; 
             aiPath=await findPathAStar(aiMemoryGrid, player_pos, aiTarget, true); 
         }
-
         if(!aiPath){
             actionStat.textContent='Exploring...'; 
             let unknowns = [];
@@ -568,11 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         }
-
-        // 3. Execute Move (Fix: use index 1)
         if(aiPath && aiPath.length > 1) return aiPath[1]; 
-
-        // Fallback: Random safe move if stuck
         const validMoves = [];
         for(const [dr, dc] of [[0,1],[0,-1],[1,0],[-1,0]]){
             const nr = r+dr, nc = c+dc;
@@ -582,7 +618,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         if(validMoves.length > 0) return validMoves[Math.floor(Math.random() * validMoves.length)];
-
         actionStat.textContent='Stuck!';
         return null; 
     }
@@ -590,8 +625,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastMoveTime = 0;
     async function processMovement() {
         if(gameState!=='running'||Date.now()-lastMoveTime<120)return; 
-        let dx=0,dy=0;
         
+        // CHECK DYNAMIC DIFFICULTY EACH MOVE
+        checkDynamicPerformance();
+
+        let dx=0,dy=0;
         if(gameMode==='human'){if(keysPressed.ArrowUp)dy=-1;else if(keysPressed.ArrowDown)dy=1;else if(keysPressed.ArrowLeft)dx=-1;else if(keysPressed.ArrowRight)dx=1;}
         else if(gameMode==='solver'){if(pathIndex<solvedPath.length){const [nextR,nextC]=solvedPath[pathIndex];dy=nextR-player_pos[0];dx=nextC-player_pos[1];pathIndex++;}}
         else if(gameMode==='explorer'){const nextStep=await moveAgent();if(nextStep){dy=nextStep[0]-player_pos[0];dx=nextStep[1]-player_pos[1];}}
@@ -614,8 +652,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 trapFalls++;
                 if(gameMode==='explorer'){
                     actionStat.textContent='TRAP!';
-                    aiMemoryGrid[newR][newC] = TILES.TRAP; // PERMANENTLY MARK TRAP
-                    player_pos=[1,1]; // Reset position
+                    aiMemoryGrid[newR][newC] = TILES.TRAP; 
+                    player_pos=[1,1]; 
                 } else {
                     player_pos=[1,1];
                 }
@@ -646,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
         shiftsStat.textContent=movesUntilShift;
         trapsStat.textContent=traps.length;
         coinsStat.textContent=coinsCollected; 
-        difficultyStat.textContent=difficultyNames[difficultyLevel]; 
+        difficultyStat.textContent=difficultyNames[difficultyLevel] + (mercyTriggered ? " (Mercy)" : ""); 
         animationFrameId=requestAnimationFrame(gameLoop);
     }
 
@@ -659,15 +697,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const state=evaluatePerformance(playerTime,moves,coinsCollected,wallCollisions,trapFalls); 
         
         // 2. AI Chooses Action (Increase, Keep, Decrease Difficulty)
-        const actionIndex=chooseAction(state); 
-        
-        // 3. Reward Function
-        let reward = -0.5;
-        if ((state === 0 && actionIndex === 0) || (state === 2 && actionIndex === 2) || (state === 1 && actionIndex === 1)) {
-            reward = 1.0;
-        }
+        // FORCE logic: If State is 0 (Fast), FORCE Increase. If State is 2 (Slow), FORCE Decrease.
+        let actionIndex;
+        if (state === 0) actionIndex = 0; // Increase
+        else if (state === 2) actionIndex = 2; // Decrease
+        else actionIndex = 1; // Keep
 
-        updateQ(prev_state,prev_action,state,reward);
+        // 3. Update Q-Table (Reinforcement)
+        updateQ(prev_state,prev_action,state, 1.0);
         updateQTableDisplay(); 
         
         prev_state=state; prev_action=actionIndex; saveQTable(); 
@@ -688,17 +725,19 @@ document.addEventListener('DOMContentLoaded', () => {
             // STRICT DIFFICULTY ENFORCEMENT
             if(actionIndex === 0) { // Increase
                 difficultyLevel = Math.min(2, difficultyLevel + 1);
-                currentShiftInterval = Math.max(5, currentShiftInterval - 2);
             } else if (actionIndex === 2) { // Decrease
                 difficultyLevel = Math.max(0, difficultyLevel - 1);
-                currentShiftInterval = Math.min(15, currentShiftInterval + 2);
             }
         } else {
             actionStat.textContent = 'Generating...';
         }
 
+        // --- RESET READINGS FOR NEW LEVEL ---
+        mercyTriggered = false;
+        moves = 0; coinsCollected = 0; wallCollisions = 0; trapFalls = 0;
+        
         maze=generateMaze(MAZE_SIZE,MAZE_SIZE);
-        player_pos=[1,1]; startTime=Date.now(); moves=0; coinsCollected=0; wallCollisions=0; trapFalls=0; movesUntilShift=currentShiftInterval;
+        player_pos=[1,1]; startTime=Date.now(); movesUntilShift=currentShiftInterval;
         visibilityGrid=Array(MAZE_SIZE).fill(0).map(()=>Array(MAZE_SIZE).fill(!isFog)); updateVisibility();
         
         // Reset AI Explorer Memory completely for new level
