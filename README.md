@@ -3,7 +3,8 @@
 > **A self-adapting, living maze environment where the game learns from you.**
 
 **MazeMind 2D** is not just a maze game; it is an AI simulation sandbox. It features a **"Dungeon Master" AI** that uses Reinforcement Learning (Q-Learning) to analyze your performance in real-time and adjust the maze's difficulty, layout, and traps dynamically.
-#[Click here to play the game!](https://aiswaryajosy.github.io/MazeMind/)
+
+[Click here to play the game!](https://aiswaryajosy.github.io/MazeMind/)
 
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
