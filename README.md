@@ -86,6 +86,3 @@ When the environment is set to **Dynamic**, the maze shifts walls randomly. To p
 * **Styling:** Tailwind CSS for the HUD and Glassmorphism effects.
 * **Animation:** GSAP (GreenSock) for smooth UI transitions and camera shakes.
 * **Logic:** Vanilla JavaScript (No external game engines used).
-
-## 📄 License
-Distributed under the MIT License. See `LICENSE` for more information.
